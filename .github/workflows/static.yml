@@ -1,0 +1,327 @@
+globals
+[
+  time
+  foxes-color
+  rabbits-color
+  grass-color
+  dirt-color
+  invasive-color
+  rabbits-stride ;; how much a rabbi moves in each simulation step
+  invaders-stride  ;; how much an invader moves in each simulation step
+  foxes-stride ;;  how much a fox moves in each simulation step
+  fox-size
+  rabbit-reproduce-age
+  invader-reproduce-age
+  fox-reproduce-age
+  rabbits-energy-gain-from-food
+  foxes-energy-gain-from-rabbits
+  foxes-energy-gain-from-invaders
+  max-plant-energy
+  max-rabbits-age
+ ;; grass-delay
+  min-reproduce-energy-rabbits ;; energy required for reproduction
+  min-reproduce-energy-invaders  ;; energy required for reproduction
+  min-reproduce-energy-foxes ;; energy required for reproduction
+  invaded?
+  max-foxes-age
+  max-invaders-age
+  max-rabbits-offspring
+  max-foxes-offspring
+  max-invaders-offspring
+]
+
+breed [ rabbits rabbit]
+breed [ invaders invader]
+breed [ foxes fox]
+
+turtles-own [ energy current-age max-age female?]
+patches-own [ fertile?  plant-energy ]
+
+to setup
+  ;; (for this model to work with NetLogo's new plotting features,
+  ;; __clear-all-and-reset-ticks should be replaced with clear-all at
+  ;; the beginning of your setup procedure and reset-ticks at the end
+  ;; of the procedure.)
+  clear-all
+  set time 0
+  set invaded? false
+  set max-plant-energy 100
+  set rabbits-stride 0.3
+  set invaders-stride 0.3
+  set foxes-stride 0.4
+  ;;  a larger foxes-stride than rabbits-stride leads to scenarios where less foxes
+  ;;  can keep a larger number of rabbitss in balance.
+  set rabbit-reproduce-age 20
+  set invader-reproduce-age 20
+  set fox-reproduce-age 40
+  set max-foxes-age 100
+  set max-invaders-age 100
+  set max-rabbits-age 100
+  set rabbits-energy-gain-from-food 4
+  set foxes-energy-gain-from-rabbits 25
+  set foxes-energy-gain-from-invaders 25
+  set min-reproduce-energy-rabbits 10
+  set min-reproduce-energy-invaders 10
+  set min-reproduce-energy-foxes 10
+  set max-rabbits-offspring 3
+  set max-invaders-offspring 3
+  set max-foxes-offspring 2
+  set fox-size 1
+  set foxes-color  (red - 1)
+  set rabbits-color (gray - 1)
+  set invasive-color (blue - 3)
+  set grass-color (green)
+  set dirt-color (white)
+  set-default-shape rabbits "rabbit"
+  set-default-shape foxes "fox"
+  set-default-shape invaders "mouse"
+  add-starting-grass
+  add-rabbits
+  add-foxes
+  do-plots
+end 
+
+to go
+ if time >= 2500 [stop]
+  ask rabbits [ rabbits-live reproduce-rabbits]
+  ask foxes [ foxes-live reproduce-foxes]
+  ask invaders [invaders-live reproduce-invaders]
+  ask patches [grow-grass]   ;;only the fertile patches can grow grass
+
+  do-plots  ;; plot populations
+  set time time + 1
+end 
+
+to add-starting-grass
+  ask patches [
+      ifelse random 100 < percent-grass    ;;student sets the maximum number of fertile patches
+    [
+      set fertile? true
+      set plant-energy (max-plant-energy - random max-plant-energy)
+    ]
+    [
+      set fertile? false
+      set plant-energy 0
+    ]
+    color-grass
+  ]
+  reset-ticks
+end 
+
+to add-rabbits
+  create-rabbits initial-number-rabbits  ;; create the rabbits, then initialize their variables
+  [
+    set color rabbits-color
+    set energy 20 + random 20 - random 20;;randomize starting energies
+    set current-age 0  + random max-rabbits-age     ;;don't start out with everyone at the same age
+    set max-age max-rabbits-age
+    setxy random world-width random world-height
+     ;;ifelse (random 2 = 0) [set female? true] [set female? false]
+  ]
+end 
+
+to add-invaders
+  create-invaders number-invaders ;; create the rabbits, then initialize their variables
+  [
+    set color invasive-color
+    set energy 20 + random 20 - random 20;;randomize starting energies
+    set current-age 0  + random max-invaders-age     ;;don't start out with everyone at the same age
+    set max-age max-invaders-age
+    setxy random world-width random world-height
+   ;;  ifelse (random 2 = 0) [set female? true] [set female? false]
+  ]
+end 
+
+to add-foxes
+  create-foxes initial-number-foxes  ;; create the rabbits, then initialize their variables
+  [
+    set color foxes-color
+    set energy 40 + random 40 - random 40 ;;randomize starting energies
+    set current-age 0  + random max-foxes-age     ;;don't start out with everyone at the same age
+    set max-age max-foxes-age
+    set size fox-size
+    setxy random world-width random world-height
+   ;;  ifelse (random 2 = 0) [set female? true] [set female? false]
+  ]
+end 
+
+to rabbits-live
+    move-rabbits
+    set energy energy - 1  ;; rabbitss lose energy as they move
+    set current-age current-age + 1
+    rabbits-eat-grass
+    death
+end 
+
+to invaders-live
+    move-invaders
+    set energy energy - 1  ;; rabbitss lose energy as they move
+    set current-age current-age + 1
+    invaders-eat-grass
+    death
+end 
+
+to foxes-live
+  move-foxes
+  set energy energy - 1  ;; foxes lose energy as they move
+  set current-age current-age + 1
+  eat-prey
+  death
+end 
+
+to move-rabbits  ;; turtle procedure
+  rt random 50 - random 50
+  fd rabbits-stride
+end 
+
+to move-invaders  ;; turtle procedure
+  rt random 40 - random 40
+  fd invaders-stride
+end 
+
+to move-foxes  ;; turtle procedure
+  rt random 50 - random 50
+  fd foxes-stride
+end 
+
+to rabbits-eat-grass  ;; rabbits procedure
+  ;; if there is enough grass to eat at this patch, the rabbits eat it
+  ;; and then gain energy from it.
+  if plant-energy > rabbits-energy-gain-from-food  [
+    ;; plants lose ten times as much energy as the rabbits gains (trophic level assumption)
+    set plant-energy (plant-energy - (rabbits-energy-gain-from-food * 10))
+    set energy energy + rabbits-energy-gain-from-food  ;; rabbits gain energy by eating
+  ]
+  ;; if plant-energy is negative, make it positive
+  if plant-energy <=  rabbits-energy-gain-from-food  [set plant-energy 0]
+end 
+
+to invaders-eat-grass  ;; invaders procedure
+  ;; if there is enough grass to eat at this patch, the invaders eat it
+  ;; and then gain energy from it.
+  if plant-energy > food-invaders-eats  [
+    ;; plants lose 10 * as much energy as the invader gains (trophic level assumption)
+    set plant-energy (plant-energy - (food-invaders-eats * 10))
+    set energy energy + food-invaders-eats  ;; rabbits gain energy by eating
+  ]
+  ;; if plant-energy is negative, make it positive
+  if plant-energy <=  food-invaders-eats  [set plant-energy 0]
+end 
+
+to eat-prey  ;; foxes procedure
+    if (any? rabbits-here and not any? invaders-here)
+        [ask one-of  rabbits-here  [die]
+           set energy (energy + foxes-energy-gain-from-rabbits)
+         ]
+      if (any? invaders-here and not any? rabbits-here)
+        [ask one-of  invaders-here  [die]
+           set energy (energy + foxes-energy-gain-from-invaders)
+         ]
+      if (any? invaders-here and any? rabbits-here)
+        [ifelse random 2 = 0   ;; 50/50 chance to eat an invader or a rabbit if both are on this patch
+           [ask one-of  invaders-here  [die] set energy (energy + foxes-energy-gain-from-invaders)]
+           [ask one-of  rabbits-here  [die] set energy (energy + foxes-energy-gain-from-rabbits)]
+         ]
+end 
+
+to reproduce-rabbits  ;; rabbits procedure
+  let number-offspring (random (max-rabbits-offspring + 1)) ;; set number of potential offpsring from 1 to (max-rabbits-offspring)
+  if (energy > ((number-offspring + 1) * min-reproduce-energy-rabbits)  and current-age > rabbit-reproduce-age)
+  [
+    if random 2 = 1           ;;only half of the fertile rabbitss reproduce (gender)
+    [
+      set energy (energy - (number-offspring  * min-reproduce-energy-invaders))      ;;loose energy when reproducing --- given to children
+      hatch number-offspring
+      [
+        set size 1
+        set color rabbits-color
+        set energy min-reproduce-energy-rabbits ;; split remaining half of energy amongst litter
+        set current-age 0
+       ;; ifelse (random 2 = 0) [set female? true] [set female? false]
+        rt random 360 fd rabbits-stride
+      ]    ;; hatch an offspring set it heading off in a a random direction and move it forward a step
+    ]
+  ]
+end 
+
+to reproduce-invaders  ;; rabbits procedure
+  let number-offspring (random (max-invaders-offspring + 1)) ;; set number of potential offpsring from 1 to (max-invaders-offspring)
+  if (energy > ((number-offspring + 1) *  min-reproduce-energy-invaders)  and current-age > invader-reproduce-age)
+  [
+    if random 2 = 1           ;;only half of the fertile invaders reproduce (gender)
+    [
+      set energy (energy - ( number-offspring * min-reproduce-energy-invaders))            ;;loose energy when reproducing --- given to children
+      hatch number-offspring
+      [
+        set size 1
+        set color invasive-color
+        set energy min-reproduce-energy-invaders ;; split remaining half of energy amongst litter
+        set current-age 0
+       ;; ifelse (random 2 = 0) [set female? true] [set female? false]
+        rt random 360 fd invaders-stride
+      ]    ;; hatch an offspring set it heading off in a a random direction and move it forward a step
+    ]
+  ]
+end 
+
+to reproduce-foxes  ;; rabbits procedure
+  let number-offspring (random (max-foxes-offspring + 1)) ;; set number of potential offpsring from 1 to (max-invaders-offspring)
+  if (energy > ((number-offspring + 1) * min-reproduce-energy-foxes)  and current-age > fox-reproduce-age)
+  [
+    if random 2 = 1           ;;only half of the fertile rabbitss reproduce (gender)
+    [
+      set energy (energy - (number-offspring * min-reproduce-energy-foxes))           ;;loose energy when reproducing --- given to children
+      hatch number-offspring
+      [
+        ;;set breed eggs
+        set current-age 0
+        set size fox-size
+        set color foxes-color
+        set energy min-reproduce-energy-foxes ;; split remaining half of energy amongst litter
+        set current-age 0
+       ;; ifelse (random 2 = 0) [set female? true] [set female? false]
+        rt random 360 fd foxes-stride
+      ]    ;; hatch an offspring set it heading off in a a random direction and move it forward a step
+    ]
+  ]
+end 
+
+to death  ;; turtle procedure
+  ;; die when energy dips below zero (starvation), or get too old
+  if (current-age > max-age) or (energy < 0)
+  [ die ]
+end 
+
+to grow-grass  ;; patch procedure
+
+  ;; fertile patches gain 1 energy unit per turn, up to a maximum max-plant-energy threshold
+  if fertile?
+     [set plant-energy (plant-energy + 1) if plant-energy > max-plant-energy [set plant-energy max-plant-energy]]
+
+  if not fertile?
+     [set plant-energy 0]
+  if plant-energy < 0 [set plant-energy 0]
+  color-grass
+end 
+
+to color-grass
+  ifelse fertile? [
+    ifelse plant-energy > 0
+    ;; scale color of patch from whitish green for low energy (less foliage) to green - high energy (lots of foliage)
+    [set pcolor (scale-color green plant-energy  (max-plant-energy * 2)  0)]
+    [set pcolor dirt-color]
+    ]
+  [set pcolor dirt-color]
+end 
+
+to do-plots
+    set-current-plot "populations"
+    set-current-plot-pen "rabbits"
+    plot count rabbits
+    set-current-plot-pen "invaders"
+    plot count invaders
+    set-current-plot-pen "foxes"
+    plot count foxes
+    set-current-plot-pen "grass"
+    plot (sum [plant-energy] of patches / max-plant-energy)
+end 
